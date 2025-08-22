@@ -1,0 +1,110 @@
+version: v1
+file_version: "1.1.0"
+last_updated: "2025-08-19"
+maintainer: "genai-platform-team@example.com"
+
+approval:
+  required: true
+  approvers:
+    - name: "Demo User"
+      email: "demo@7sg.ai"
+      
+workloads:
+  - name: "Azure Demo Workload"
+    uuid: "a0c42d35-473f-42e7-a51e-ded3e88c57f3"
+    version: "2.1.0"
+    description: "RAG-based chatbot for customer support queries"
+    workload_type: "rag"
+    compatible_with: ["2.0.0", "1.9.5"]
+    code_repositories:
+      - name: "7sg Azure Search Demo"
+        url: "https://github.com/7sg-ai/azure-search-openai-demo"
+        branch: "main"
+        auth:
+          type: "vault"
+          path: "secret/data/github/token"
+          key: "token"
+
+external_interfaces:
+  apis:
+    - name: "OpenAI Chat Completion"
+      type: "llm"
+      endpoint_lookup: "lookup://openai/chat/completions"
+      auth:
+        type: "env"
+        env_var: "OPENAI_API_KEY"
+  agents:
+    - name: "Document Retriever"
+      type: "agent"
+      endpoint_lookup: "lookup://retriever/internal/vector_search"
+  model_endpoints:
+    - name: "Fine-tuned GPT"
+      type: "llm"
+      endpoint_lookup: "lookup://models/gpt-finetune-customer-support"
+
+data_sources:
+  definition_file: "data_sources.yaml"
+  credentials:
+    - name: "Wikipedia RAG Source"
+      definition_file: "wikipedia_config.yaml"
+    - name: "Customer Logs"
+      type: "sql"
+      auth:
+        type: "vault"
+        path: "secret/data/sql/creds"
+        user_key: "username"
+        password_key: "password"
+
+terraform:
+  profiling:
+    reference: "git::https://github.com/org/infra//profiling"
+  production:
+    reference: "git::https://github.com/org/infra//production"
+
+target_environments:
+  - name: "AWS all regions"
+    type: "aws"
+    region: "*"
+  - name: "GCP US only"
+    type: "gcp"
+    region: "us-*"
+  - name: "on-prem"
+    type: "baremetal"
+    region: "datacenter-west"
+
+deployment_profiles:
+  profiling:
+    dataset_source:
+      - type: "git"
+        url: "https://github.com/7sg-ai/azure-search-openai-demo"
+        path: "data/*"
+      - type: "vastdb"
+        table: "qa_inputs_outputs_v2"
+    objective:
+      type: "p%_guarantee"
+      percentile: 95
+      response_time_ms: 400
+      interactions_per_sec: 100
+  production:
+    objective:
+      type: "best_effort"
+      interactions_per_sec: 100
+
+open_metadata:
+  agents:
+    - name: "RAG Retriever"
+      type: "VectorAgent"
+      depends_on:
+        - data_source: "Wikipedia Snapshot"
+    - name: "Orchestrator"
+      type: "LangChainRouter"
+      calls:
+        - "RAG Retriever"
+        - "Fine-tuned GPT"
+  lineage:
+    - from: "data_source:Wikipedia Snapshot"
+      to: "agent:RAG Retriever"
+      description: "Documents flow to vector retriever"
+    - from: "agent:RAG Retriever"
+      to: "model_endpoint:Fine-tuned GPT"
+      description: "Retriever outputs fed to LLM endpoint"

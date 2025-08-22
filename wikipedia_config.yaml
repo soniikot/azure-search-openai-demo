@@ -1,0 +1,34 @@
+version: v1
+metadata:
+  file_version: "1.0.0"
+  last_updated: "2025-08-19"
+  maintainer: "ai-platform-team@example.com"
+
+data_sources:
+  - id: "ds-001"
+    name: "Wikipedia Snapshot (2023)"
+    uuid: "5f3d84c3-81fa-489a-b131-e9ab6f312234"
+    description: "A snapshot of English Wikipedia articles from 2023 used for retrieval-based QA workloads."
+    owning_organization: "org_123"
+    allowed_organizations:
+      - "org_123"
+      - "org_123.child_1"
+      - "org_123.child_2"
+    allowed_usage: "any"  # Options: profiling | production | any
+    associated_workloads:
+      - name: "RAG QA Benchmark"
+        uuid: "cde75aa2-7f4f-4f9e-91e6-ef9b3c24ad4c"
+        version: "v2.1"
+    environments:
+      dev:
+        access_method: "s3"
+        s3_bucket: "s3://dev-datasets/wikipedia-2023"
+        credentials: "env:AWS_DEV_CREDENTIALS"
+      staging:
+        access_method: "http"
+        url: "https://staging.example.org/datasets/wikipedia-2023"
+        api_key: "env:STAGING_API_KEY"
+      prod:
+        access_method: "s3"
+        s3_bucket: "s3://prod-datasets/wikipedia-2023"
+        credentials: "env:AWS_PROD_CREDENTIALS"
