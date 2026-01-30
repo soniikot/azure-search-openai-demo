@@ -691,6 +691,7 @@ module openAi 'br/public:avm/res/cognitive-services/account:0.7.2' = if (isAzure
   }
 }
 
+
 // Formerly known as Form Recognizer
 // Does not support bypass
 module documentIntelligence 'br/public:avm/res/cognitive-services/account:0.7.2' = {
@@ -940,13 +941,16 @@ module ai 'core/ai/ai-environment.bicep' = if (useAiProject) {
 // USER ROLES
 var principalType = empty(runningOnGh) && empty(runningOnAdo) ? 'User' : 'ServicePrincipal'
 
-module openAiRoleUser 'core/security/role.bicep' = if (isAzureOpenAiHost && deployAzureOpenAi) {
+// OpenAI role assignments must be scoped to the OpenAI account resource, not the resource group
+// This is required for data plane operations (chat completions, embeddings, etc.)
+module openAiRoleUser 'core/security/role-account-scoped.bicep' = if (isAzureOpenAiHost && deployAzureOpenAi) {
   scope: openAiResourceGroup
   name: 'openai-role-user'
   params: {
     principalId: principalId
-    roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
     principalType: principalType
+    roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
+    accountName: openAi.outputs.name
   }
 }
 
@@ -1057,25 +1061,29 @@ module cosmosDbDataContribRoleUser 'core/security/documentdb-sql-role.bicep' = i
 }
 
 // SYSTEM IDENTITIES
-module openAiRoleBackend 'core/security/role.bicep' = if (isAzureOpenAiHost && deployAzureOpenAi) {
+// OpenAI role assignments must be scoped to the OpenAI account resource, not the resource group
+// This is required for data plane operations (chat completions, embeddings, etc.)
+module openAiRoleBackend 'core/security/role-account-scoped.bicep' = if (isAzureOpenAiHost && deployAzureOpenAi) {
   scope: openAiResourceGroup
   name: 'openai-role-backend'
   params: {
     principalId: (deploymentTarget == 'appservice')
       ? backend.outputs.identityPrincipalId
       : acaBackend.outputs.identityPrincipalId
-    roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
     principalType: 'ServicePrincipal'
+    roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
+    accountName: openAi.outputs.name
   }
 }
 
-module openAiRoleSearchService 'core/security/role.bicep' = if (isAzureOpenAiHost && deployAzureOpenAi && (useIntegratedVectorization || useAgenticRetrieval)) {
+module openAiRoleSearchService 'core/security/role-account-scoped.bicep' = if (isAzureOpenAiHost && deployAzureOpenAi && (useIntegratedVectorization || useAgenticRetrieval)) {
   scope: openAiResourceGroup
   name: 'openai-role-searchservice'
   params: {
     principalId: searchService.outputs.principalId
-    roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
     principalType: 'ServicePrincipal'
+    roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
+    accountName: openAi.outputs.name
   }
 }
 

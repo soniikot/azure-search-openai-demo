@@ -2,7 +2,43 @@ import argparse
 import asyncio
 import logging
 import os
+import ssl
 from typing import Optional, Union
+
+# Configure SSL certificates for macOS compatibility
+# This ensures aiohttp (used by Azure SDK) can verify SSL certificates
+try:
+    import certifi
+    import aiohttp
+    
+    # Set SSL certificate file environment variable
+    # This helps aiohttp and other libraries find the certificate bundle
+    os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+    os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
+    
+    # Configure Python's default SSL context to use certifi's certificates
+    # This ensures SSL verification works on macOS where system certificates may not be accessible
+    ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
+    
+    # Configure aiohttp's default SSL context
+    # Azure SDK uses aiohttp internally, so we need to ensure it uses certifi's certificates
+    _certifi_ssl_context = ssl.create_default_context(cafile=certifi.where())
+    
+    # Patch aiohttp.TCPConnector to use certifi's certificates by default
+    # This ensures all aiohttp connectors created by Azure SDK use the correct certificates
+    original_init = aiohttp.TCPConnector.__init__
+    
+    def patched_init(self, *args, **kwargs):
+        if "ssl" not in kwargs or kwargs["ssl"] is True:
+            kwargs["ssl"] = _certifi_ssl_context
+        elif kwargs.get("ssl") is False:
+            kwargs["ssl"] = False
+        return original_init(self, *args, **kwargs)
+    
+    aiohttp.TCPConnector.__init__ = patched_init
+except ImportError:
+    # certifi should be installed, but handle gracefully if not
+    pass
 
 from azure.core.credentials import AzureKeyCredential
 from azure.core.credentials_async import AsyncTokenCredential
